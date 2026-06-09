@@ -1,0 +1,43 @@
+# ── Personal data — NEVER upload these ──────────────────────
+data/
+uploads/
+static/images/
+fb_export_*.html
+debug_*.html
+
+# ── Python ───────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# ── Virtual environments ──────────────────────────────────────
+venv/
+env/
+.venv/
+.env/
+
+# ── Environment / secrets ─────────────────────────────────────
+.env
+*.env
+secret_key.txt
+
+# ── OS junk ───────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editor junk ───────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Logs ──────────────────────────────────────────────────────
+*.log
