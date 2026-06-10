@@ -132,7 +132,7 @@
 
 To verify it worked, open a terminal and type:
 ```bash
-python --version
+python3 --version
 ```
 You should see something like `Python 3.11.4`.
 
@@ -187,7 +187,7 @@ automation. It does not affect your regular Firefox installation.
 ### Step 6 — Start the app
 
 ```bash
-python app.py
+python3 app.py
 ```
 
 You should see:
@@ -305,7 +305,7 @@ To generate a self-contained HTML file with all posts and images
 embedded (works without internet or running the server):
 
 ```bash
-python export_viewer.py
+python3 export_viewer.py
 ```
 
 This creates a file named `fb_export_YYYYMMDD_HHMMSS.html` in the
@@ -421,15 +421,10 @@ These are known problems that would benefit from a fix:
 ## ☕ Support the Project
 
 FBSave is free and open source. If it saved you time or helped you
-archive something important to you, consider supporting its development.
+archive something important, consider supporting its development.
 
 Every contribution — large or small — helps keep the project maintained
 and improved.
-
-## ☕ Support the Project
-
-FBSave is free and open source. If it saved you time or helped you
-archive something important, consider supporting its development.
 
 | Platform | Link |
 |---|---|
