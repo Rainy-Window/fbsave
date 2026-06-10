@@ -13,6 +13,15 @@
 
 ---
 
+## ⚠️ Security Warning
+
+**This application is built strictly for local usage (`localhost` / `127.0.0.1`).** * **No Authentication:** The backend endpoints do not require a login username or password. 
+* **Network Risk:** Do **NOT** host or deploy this application publicly on the open web (such as AWS, Heroku, Render, or an exposed home server ip) without adding an authentication layer. Doing so would allow anyone on the internet to trigger scraper tasks, upload files, or view/wipe your data.
+
+---
+
+---
+
 ## 📸 Screenshots
 
 | Dashboard | Viewer (Dark Mode) |
@@ -89,6 +98,8 @@
    and saved to a local JSON file
 5. You browse your saved posts in the built-in viewer at any time
 
+- **Secure Local Session Copying:** To simulate a logged-in browser without asking for or storing your actual Facebook email or password, the scraper safely queries your *local* Firefox browser database (`cookies.sqlite`) for authorized `facebook.com` cookies. This process happens entirely locally on your own machine.
+
 ---
 
 ## 💻 System Requirements
@@ -121,7 +132,7 @@
 
 To verify it worked, open a terminal and type:
 ```bash
-python3 --version
+python --version
 ```
 You should see something like `Python 3.11.4`.
 
@@ -176,7 +187,7 @@ automation. It does not affect your regular Firefox installation.
 ### Step 6 — Start the app
 
 ```bash
-python3 app.py
+python app.py
 ```
 
 You should see:
@@ -192,6 +203,26 @@ Open your browser and go to:
 **http://127.0.0.1:5000**
 
 ---
+
+
+### 🔒 Privacy Notice (For Developers & Forks)
+
+If you plan to fork this repository or push your local modifications back to GitHub, ensure that you **do not accidentally upload your personal data**. 
+
+Before running the application, double-check that your `.gitignore` file includes the following entries to keep your personal data off GitHub:
+
+\`\`\`ini
+# Ignore local database and configs
+data/results.json
+data/recycle_bin.json
+data/config.json
+
+# Ignore downloaded media and temporary uploads
+static/images/*
+!static/images/.gitkeep
+uploads/*
+!uploads/.gitkeep
+\`\`\`
 
 ## 🦊 Finding Your Firefox Profile Path
 
@@ -293,7 +324,7 @@ To generate a self-contained HTML file with all posts and images
 embedded (works without internet or running the server):
 
 ```bash
-python3 export_viewer.py
+python export_viewer.py
 ```
 
 This creates a file named `fb_export_YYYYMMDD_HHMMSS.html` in the
