@@ -205,25 +205,6 @@ Open your browser and go to:
 ---
 
 
-### 🔒 Privacy Notice (For Developers & Forks)
-
-If you plan to fork this repository or push your local modifications back to GitHub, ensure that you **do not accidentally upload your personal data**. 
-
-Before running the application, double-check that your `.gitignore` file includes the following entries to keep your personal data off GitHub:
-
-\`\`\`ini
-# Ignore local database and configs
-data/results.json
-data/recycle_bin.json
-data/config.json
-
-# Ignore downloaded media and temporary uploads
-static/images/*
-!static/images/.gitkeep
-uploads/*
-!uploads/.gitkeep
-\`\`\`
-
 ## 🦊 Finding Your Firefox Profile Path
 
 The tool needs the path to your Firefox profile folder so it can read
