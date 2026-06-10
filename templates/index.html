@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facebook Saved Items Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen font-sans">
+    <div class="max-w-4xl mx-auto p-8">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-blue-600">FB Saved Items Dashboard</h1>
+            <p class="text-gray-600">Extract and view your Facebook saved posts beautifully.</p>
+        </header>
+
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-xl font-semibold mb-4">Extraction Settings</h2>
+            <input type="hidden" id="csrf_token" value="{{ csrf_token() }}">
+            <div class="mb-4">
+                <label for="profile_path" class="block text-sm font-medium text-gray-700 mb-1">Firefox Profile Path</label>
+                <input type="text" id="profile_path" value="{{ config.get('profile_path', '') }}" placeholder="~/.mozilla/firefox/xxxxxxxx.default-release"
+                       class="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500">
+                <p class="text-xs text-gray-500 mt-1">Found in <code>about:profiles</code> in Firefox.</p>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-xl font-semibold mb-4">Extract from Facebook DYI Files</h2>
+            <p class="text-sm text-gray-600 mb-4">
+                Upload one or both files from your Facebook data export (JSON format):<br>
+                <code class="bg-gray-100 px-1">your_saved_items.json</code> and/or <code class="bg-gray-100 px-1">collections.json</code>
+            </p>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Select File(s)</label>
+                <input type="file" id="dyi_files" accept=".json" multiple
+                       class="w-full p-2 border border-gray-300 rounded">
+                <p class="text-xs text-gray-500 mt-1">You can select both files at once (hold Ctrl/Cmd while clicking).</p>
+            </div>
+            <button onclick="startDyiExtraction()" id="dyi-extract-btn"
+                    class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-6 rounded transition duration-200">
+                Start DYI Extraction
+            </button>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-xl font-semibold mb-4">Manual URL Extraction</h2>
+            <div class="mb-4">
+                <label for="urls" class="block text-sm font-medium text-gray-700 mb-1">Facebook URLs (one per line)</label>
+                <textarea id="urls" rows="6" placeholder="https://www.facebook.com/posts/..."
+                          class="w-full p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"></textarea>
+            </div>
+            <button onclick="startExtraction()" id="extract-btn"
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded transition duration-200">
+                Start Manual Extraction
+            </button>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-xl font-semibold mb-4">Extraction Status</h2>
+            <div class="flex items-center gap-3 mb-3">
+                <span id="status-message" class="text-sm font-medium text-gray-700">Idle</span>
+                <span id="status-spinner" class="hidden animate-spin inline-block w-4 h-4 border-2 border-t-2 border-blue-600 rounded-full"></span>
+                <button onclick="resetStatus()" class="ml-2 text-sm text-red-500 hover:underline">Reset</button>
+            </div>
+            <!-- Progress bar (hidden when idle) -->
+            <div id="progress-container" class="hidden">
+                <div class="flex justify-between text-xs text-gray-500 mb-1">
+                    <span id="progress-label">0 / 0</span>
+                    <span id="progress-pct">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div id="progress-bar" class="bg-blue-600 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-xl font-semibold mb-4">Extracted Items</h2>
+            <div id="results-count" class="text-gray-600 mb-4">
+                Total items: <span class="font-bold text-blue-600">{{ results|length }}</span>
+            </div>
+            <a href="/viewer" target="_blank"
+               class="inline-block bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded transition duration-200">
+                Open Beautiful Viewer
+            </a>
+        </div>
+    </div>
+
+    <script>
+        const profilePathInput = document.getElementById("profile_path");
+        const extractBtn = document.getElementById("extract-btn");
+        const dyiExtractBtn = document.getElementById("dyi-extract-btn");
+        const statusMessage = document.getElementById("status-message");
+        const statusSpinner = document.getElementById("status-spinner");
+        const progressContainer = document.getElementById("progress-container");
+        const progressBar = document.getElementById("progress-bar");
+        const progressLabel = document.getElementById("progress-label");
+        const progressPct = document.getElementById("progress-pct");
+
+        function setStatus(message, running, current, total) {
+            statusMessage.innerText = message;
+            if (running) {
+                statusSpinner.classList.remove("hidden");
+                extractBtn.disabled = true;
+                dyiExtractBtn.disabled = true;
+                extractBtn.classList.add("opacity-50");
+                dyiExtractBtn.classList.add("opacity-50");
+            } else {
+                statusSpinner.classList.add("hidden");
+                extractBtn.disabled = false;
+                dyiExtractBtn.disabled = false;
+                extractBtn.classList.remove("opacity-50");
+                dyiExtractBtn.classList.remove("opacity-50");
+            }
+
+            if (total > 0) {
+                progressContainer.classList.remove("hidden");
+                const pct = Math.round((current / total) * 100);
+                progressBar.style.width = pct + "%";
+                progressLabel.innerText = `${current} / ${total}`;
+                progressPct.innerText = pct + "%";
+            } else {
+                progressContainer.classList.add("hidden");
+            }
+        }
+
+        async function resetStatus() {
+            await fetch("/reset_status", {
+                method: "POST",
+                headers: { "X-CSRFToken": document.getElementById("csrf_token").value }
+            });
+            setStatus("Idle", false, 0, 0);
+        }
+
+        async function checkExtractionStatus() {
+            try {
+                const response = await fetch("/extraction_status");
+                const data = await response.json();
+                setStatus(data.message, data.running, data.current || 0, data.total || 0);
+                if (data.running) {
+                    setTimeout(checkExtractionStatus, 3000);
+                } else if (data.message.includes("complete")) {
+                    const r = await fetch("/data/results.json");
+                    const results = await r.json();
+                    document.getElementById("results-count").innerHTML =
+                        `Total items: <span class="font-bold text-blue-600">${results.length}</span>`;
+                }
+            } catch (e) {
+                console.error("Status check failed:", e);
+            }
+        }
+
+        async function startExtraction() {
+            const profilePath = profilePathInput.value;
+            const urls = document.getElementById("urls").value.split("\n").filter(u => u.trim());
+            if (!profilePath) { alert("Please provide your Firefox profile path."); return; }
+            if (urls.length === 0) { alert("Please enter at least one Facebook URL."); return; }
+
+            setStatus("Starting...", true, 0, urls.length);
+            const response = await fetch("/extract", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": document.getElementById("csrf_token").value
+                },
+                body: JSON.stringify({ profile_path: profilePath, urls })
+            });
+            const result = await response.json();
+            if (result.error) { alert("Error: " + result.error); setStatus(result.error, false, 0, 0); }
+            else { checkExtractionStatus(); }
+        }
+
+        async function startDyiExtraction() {
+            const profilePath = profilePathInput.value;
+            const files = document.getElementById("dyi_files").files;
+            if (!profilePath) { alert("Please provide your Firefox profile path."); return; }
+            if (files.length === 0) { alert("Please select at least one DYI JSON file."); return; }
+
+            setStatus("Parsing DYI file(s)...", true, 0, 0);
+            const formData = new FormData();
+            for (const file of files) { formData.append("dyi_files", file); }
+            formData.append("profile_path", profilePath);
+
+            const response = await fetch("/upload_dyi", {
+                method: "POST",
+                headers: { "X-CSRFToken": document.getElementById("csrf_token").value },
+                body: formData
+            });
+            const result = await response.json();
+            if (result.error) { alert("Error: " + result.error); setStatus(result.error, false, 0, 0); }
+            else { checkExtractionStatus(); }
+        }
+
+        checkExtractionStatus();
+    </script>
+</body>
+</html>
