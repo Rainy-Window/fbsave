@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facebook Saved Items Viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        *{box-sizing:border-box}
+        :root{--bg:#f0f2f5;--card:#fff;--text:#1c1e21;--sub:#65676b;--border:#e4e6eb;--comment-bg:#f0f2f5;--reply-bg:#e4e6eb;--input-bg:#fff;--input-border:#ddd;--badge-bg:#e7f3ff;--badge-color:#1877f2;--surface:#fff;--hover:#f7f8fa}
+        html.dark{--bg:#18191a;--card:#242526;--text:#e4e6eb;--sub:#b0b3b8;--border:#3a3b3c;--comment-bg:#3a3b3c;--reply-bg:#4a4b4c;--input-bg:#3a3b3c;--input-border:#555;--badge-bg:#263951;--badge-color:#4a9eff;--surface:#3a3b3c;--hover:#3a3b3c}
+        body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;transition:background .2s,color .2s}
+        .post-card{max-width:600px;margin:16px auto;background:var(--card);border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.12);overflow:hidden;transition:box-shadow .2s}
+        .post-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.2)}
+        .text-rtl{direction:rtl;text-align:right}
+        .text-ltr{direction:ltr;text-align:left}
+        .image-grid{display:grid;gap:2px;background:var(--border)}
+        .image-grid img{width:100%;height:100%;object-fit:cover;cursor:zoom-in;display:block;transition:opacity .2s}
+        .image-grid img:hover{opacity:.92}
+        .grid-1{grid-template-columns:1fr}.grid-1 img{max-height:500px;object-fit:contain;background:#000}
+        .grid-2{grid-template-columns:1fr 1fr}.grid-2 img{height:240px}
+        .grid-3{grid-template-columns:1fr 1fr;grid-template-rows:200px 200px}
+        .grid-3 > div:first-child{grid-row:span 2}.grid-3 > div:first-child img{height:400px}
+        .grid-3 > div:not(:first-child) img{height:200px}
+        .grid-4{grid-template-columns:1fr 1fr}.grid-4 img{height:200px}
+        .grid-many{grid-template-columns:repeat(3,1fr)}.grid-many img{height:160px}
+        .img-more-wrap{position:relative}.img-more-wrap::after{content:attr(data-more);position:absolute;inset:0;background:rgba(0,0,0,.55);color:#fff;font-size:28px;font-weight:700;display:flex;align-items:center;justify-content:center;pointer-events:none}
+        .text-clamped{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+        .see-more-btn{color:#1877f2;cursor:pointer;font-weight:600;font-size:14px;margin-top:4px;display:inline-block}
+        .comments-section{border-top:1px solid var(--border)}
+        .comments-toggle{width:100%;text-align:left;padding:10px 16px;background:none;border:none;cursor:pointer;font-size:13px;font-weight:600;color:var(--sub);display:flex;align-items:center;gap:6px}
+        .comments-toggle:hover{background:var(--hover)}
+        .comments-body{display:none;padding:0 12px 12px}
+        .comments-body.open{display:block}
+        .comment-block{background:var(--comment-bg);border-radius:18px;padding:8px 12px;margin-bottom:4px;font-size:14px}
+        .reply-block{background:var(--reply-bg);border-radius:14px;padding:6px 10px;margin:3px 0 3px 24px;font-size:13px}
+        .replies-toggle{color:#1877f2;font-size:12px;font-weight:600;cursor:pointer;margin:2px 0 4px 24px;display:inline-block}
+        .replies-body{display:none}.replies-body.open{display:block}
+        #lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,.93);z-index:9999;align-items:center;justify-content:center;flex-direction:column}
+        #lightbox.open{display:flex}
+        #lightbox img{max-width:90vw;max-height:88vh;object-fit:contain;border-radius:4px}
+        #lb-close{position:absolute;top:16px;right:22px;color:#fff;font-size:32px;cursor:pointer;opacity:.8}
+        #lb-prev,#lb-next{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.15);border:none;color:#fff;font-size:26px;padding:10px 16px;cursor:pointer;border-radius:6px}
+        #lb-prev{left:12px}#lb-next{right:12px}
+        .s-input{width:100%;padding:10px 16px;border-radius:20px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--text);font-size:15px;outline:none}
+        .s-input:focus{border-color:#1877f2}
+        .f-btn{padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;border:1px solid var(--input-border);cursor:pointer;background:var(--surface);color:var(--text);transition:all .15s;white-space:nowrap}
+        .f-btn.active{background:#1877f2;color:#fff;border-color:#1877f2}
+        .f-btn.tag-f{background:var(--badge-bg);color:var(--badge-color);border-color:var(--badge-color)}
+        .f-btn.tag-f.active{background:var(--badge-color);color:#fff}
+        .sort-sel{padding:6px 12px;border-radius:20px;border:1px solid var(--input-border);background:var(--surface);color:var(--text);font-size:13px;cursor:pointer;outline:none}
+        .avatar{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#1877f2,#42a5f5);color:#fff;font-size:17px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
+        .avatar img{width:100%;height:100%;object-fit:cover}
+        .type-badge{font-size:11px;background:var(--badge-bg);color:var(--badge-color);border-radius:20px;padding:2px 8px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+        .fav-btn{cursor:pointer;font-size:18px;transition:transform .15s;flex-shrink:0}
+        .fav-btn:hover{transform:scale(1.2)}.fav-btn.active{color:#f59e0b}.fav-btn.inactive{color:#9ca3af}
+        .icon-btn{cursor:pointer;font-size:14px;color:#9ca3af;transition:color .15s;flex-shrink:0;padding:2px}
+        .icon-btn:hover{color:#1877f2}.del-btn:hover{color:#ef4444!important}
+        .tag-chip{display:inline-flex;align-items:center;gap:4px;background:var(--badge-bg);color:var(--badge-color);border-radius:12px;padding:2px 8px;font-size:12px;cursor:pointer;margin:2px}
+        .tag-chip:hover{opacity:.8}
+        .add-tag-btn{display:inline-flex;align-items:center;background:var(--hover);color:var(--sub);border-radius:12px;padding:2px 8px;font-size:12px;cursor:pointer;margin:2px;border:1px dashed var(--border)}
+        .add-tag-btn:hover{border-color:#1877f2;color:#1877f2}
+        .tag-input{padding:3px 8px;border-radius:10px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--text);font-size:12px;outline:none;width:130px}
+        .tag-input:focus{border-color:#1877f2}
+        .reactions-bar{font-size:12px;color:var(--sub);margin-top:2px}
+        .post-link{color:#1877f2;text-decoration:underline;word-break:break-all}
+        .author-link{color:var(--text);font-weight:700}.author-link:hover{text-decoration:underline}
+        .comment-author-link{color:var(--text);font-weight:600;font-size:13px}.comment-author-link:hover{text-decoration:underline}
+        .pg-wrap{max-width:600px;margin:8px auto;display:flex;justify-content:center;align-items:center;gap:4px;flex-wrap:wrap}
+        .pg-btn{padding:6px 11px;border-radius:8px;border:1px solid var(--input-border);background:var(--surface);color:var(--text);cursor:pointer;font-size:13px;font-weight:600;min-width:36px}
+        .pg-btn:hover:not(:disabled){background:#1877f2;color:#fff;border-color:#1877f2}
+        .pg-btn.active{background:#1877f2;color:#fff;border-color:#1877f2}
+        .pg-btn:disabled{opacity:.4;cursor:default}
+        .pg-go-input{width:52px;padding:6px 8px;border-radius:8px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--text);font-size:13px;text-align:center;outline:none}
+        .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;align-items:center;justify-content:center}
+        .modal-overlay.open{display:flex}
+        .modal-box{background:var(--card);border-radius:12px;padding:24px;max-width:520px;width:92%;max-height:82vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.3);color:var(--text)}
+        .stat-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:14px}
+        .stat-row:last-child{border:none}
+        .stat-author-link{color:#1877f2;cursor:pointer;font-weight:600}.stat-author-link:hover{text-decoration:underline}
+        .unavail-banner{background:#fff3cd;border-left:4px solid #f59e0b;padding:10px 14px;font-size:13px;color:#92400e;margin:0 16px 12px}
+        html.dark .unavail-banner{background:#3d3000;color:#fbbf24;border-color:#f59e0b}
+        .bin-card{max-width:600px;margin:12px auto;background:var(--card);border-radius:10px;padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,.12);display:flex;align-items:center;gap:12px}
+        .video-title{font-weight:700;font-size:15px;color:var(--text);margin-bottom:4px}
+    </style>
+</head>
+<body>
+<div class="max-w-4xl mx-auto py-6 px-4">
+
+    <!-- Header -->
+    <div style="max-width:600px;margin:0 auto 12px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <h1 style="font-size:22px;font-weight:700;color:var(--text)">📌 Saved Items</h1>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span style="font-size:13px;color:var(--sub)" id="stats-label">Loading…</span>
+            <button class="f-btn" onclick="openStats()">📊 Stats</button>
+            <button class="f-btn" onclick="openBin()" id="bin-btn">🗑 Bin</button>
+            <button class="f-btn" id="screenshot-all-btn" onclick="screenshotPage()" title="Screenshot all posts on this page">📷 Page</button>
+            <button class="f-btn" id="dark-btn" onclick="toggleDark()">🌙</button>
+        </div>
+    </div>
+
+    <!-- Search + Sort -->
+    <div style="max-width:600px;margin:0 auto 8px;display:flex;gap:8px">
+        <input class="s-input" id="search-input" type="text" placeholder="🔍 Search by text or author…" oninput="applyFilters()" style="flex:1">
+        <select class="sort-sel" id="sort-select" onchange="applyFilters()">
+            <option value="default">Default order</option>
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="author">Author A–Z</option>
+            <option value="most_comments">Most comments</option>
+            <option value="most_images">Most images</option>
+        </select>
+    </div>
+
+    <!-- Filter bar -->
+    <div style="max-width:600px;margin:0 auto 8px;display:flex;gap:6px;flex-wrap:wrap" id="filter-bar">
+        <button class="f-btn active" onclick="setFilter('all',this)">All</button>
+        <button class="f-btn" onclick="setFilter('favorites',this)">⭐ Favorites</button>
+        <button class="f-btn" onclick="setFilter('unavailable',this)">⚠️ Unavailable</button>
+    </div>
+
+    <!-- Tag filter bar -->
+    <div style="max-width:600px;margin:0 auto 8px;display:flex;gap:6px;flex-wrap:wrap;min-height:28px" id="tag-bar"></div>
+
+    <!-- Pagination top -->
+    <div id="pg-top" class="pg-wrap"></div>
+
+    <div id="feed"></div>
+    <div id="no-results" style="display:none;text-align:center;padding:40px;color:var(--sub)">No posts match your search.</div>
+
+    <!-- Pagination bottom -->
+    <div id="pg-bottom" class="pg-wrap" style="margin-bottom:32px"></div>
+</div>
+
+<!-- Lightbox -->
+<div id="lightbox">
+    <span id="lb-close" onclick="closeLB()">&#x2715;</span>
+    <button id="lb-prev" onclick="stepLB(-1)">&#8249;</button>
+    <img id="lb-img" src="" alt="">
+    <button id="lb-next" onclick="stepLB(1)">&#8250;</button>
+    <div id="lb-counter" style="color:rgba(255,255,255,.65);font-size:13px;margin-top:10px"></div>
+</div>
+
+<!-- Stats modal -->
+<div class="modal-overlay" id="stats-modal" onclick="if(event.target===this)closeStats()">
+    <div class="modal-box">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <h2 style="margin:0;font-size:18px;font-weight:700">📊 Statistics</h2>
+            <span onclick="closeStats()" style="cursor:pointer;font-size:20px;color:var(--sub)">✕</span>
+        </div>
+        <div id="stats-content"><p style="color:var(--sub)">Loading…</p></div>
+    </div>
+</div>
+
+<!-- Recycle bin modal -->
+<div class="modal-overlay" id="bin-modal" onclick="if(event.target===this)closeBin()">
+    <div class="modal-box" style="max-width:640px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <h2 style="margin:0;font-size:18px;font-weight:700">🗑 Recycle Bin</h2>
+            <div style="display:flex;gap:8px;align-items:center">
+                <button onclick="emptyBin()" style="padding:6px 14px;border-radius:8px;background:#ef4444;color:#fff;border:none;font-weight:600;cursor:pointer;font-size:13px">Empty Bin</button>
+                <span onclick="closeBin()" style="cursor:pointer;font-size:20px;color:var(--sub)">✕</span>
+            </div>
+        </div>
+        <div id="bin-content"><p style="color:var(--sub)">Loading…</p></div>
+    </div>
+</div>
+
+<!-- Confirm delete -->
+<div class="modal-overlay" id="confirm-overlay">
+    <div class="modal-box" style="text-align:center;max-width:320px">
+        <p style="font-weight:600;margin-bottom:6px">Move to Recycle Bin?</p>
+        <p style="font-size:13px;color:var(--sub);margin-bottom:20px">You can restore it from the bin or empty the bin to delete permanently.</p>
+        <div style="display:flex;gap:10px;justify-content:center">
+            <button onclick="cancelDelete()" style="padding:8px 20px;border-radius:8px;border:1px solid var(--input-border);background:var(--surface);color:var(--text);cursor:pointer;font-weight:600">Cancel</button>
+            <button onclick="confirmDelete()" style="padding:8px 20px;border-radius:8px;background:#ef4444;color:#fff;border:none;cursor:pointer;font-weight:600">Move to Bin</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let allPosts=[], filteredPosts=[], currentPage=1;
+const PAGE_SIZE=50;
+let lbImages=[],lbIdx=0,currentFilter='all',currentTagFilter='',pendingDeleteUrl=null;
+
+function toggleDark(){const d=document.documentElement.classList.toggle('dark');document.getElementById('dark-btn').textContent=d?'☀️':'🌙';localStorage.setItem('darkMode',d)}
+if(localStorage.getItem('darkMode')!=='false'){document.documentElement.classList.add('dark');document.getElementById('dark-btn').textContent='☀️'}
+
+function isRTL(t){return/[\u0590-\u07FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB1D-\uFDFD\uFE70-\uFEFC]/.test(t||"")}
+function linkify(t){return t.replace(/(https?:\/\/[^\s<>"]+)/g,u=>`<a href="${DOMPurify.sanitize(u)}" target="_blank" rel="noopener noreferrer" class="post-link">${DOMPurify.sanitize(u)}</a>`)}
+function esc(s){return(s||"").replace(/\\/g,'\\\\').replace(/'/g,"\\'")}
+function safeUrl(u){return(u||"").startsWith("https://")?u:"#"}
+
+async function loadResults(){
+    try{
+        const r=await fetch("/data/results.json");
+        allPosts=await r.json();
+        updateStats();buildFilterBar();buildTagBar();applyFilters();
+    }catch(e){
+        document.getElementById("feed").innerHTML='<div class="post-card" style="padding:32px;text-align:center;color:var(--sub)">No data found. Run the extraction first.</div>';
+    }
+}
+
+function updateStats(){
+    const fav=allPosts.filter(p=>p.favorited).length;
+    document.getElementById("stats-label").innerText=`${allPosts.length} items · ⭐${fav}`;
+}
+
+function buildFilterBar(){
+    const bar=document.getElementById('filter-bar');
+    while(bar.children.length>3)bar.removeChild(bar.lastChild);
+    const colls=[...new Set(allPosts.map(p=>p.collection).filter(Boolean))];
+    colls.forEach(c=>{
+        const btn=document.createElement('button');
+        btn.className='f-btn'+(currentFilter==='collection:'+c?' active':'');btn.textContent='📁 '+c;
+        btn.onclick=()=>setFilter('collection:'+c,btn);
+        bar.appendChild(btn);
+    });
+}
+
+function buildTagBar(){
+    const bar=document.getElementById('tag-bar');
+    bar.innerHTML='';
+    const tags=[...new Set(allPosts.flatMap(p=>p.tags||[]))];
+    if(!tags.length)return;
+    const label=document.createElement('span');
+    label.style.cssText='font-size:12px;color:var(--sub);padding:6px 4px;align-self:center';
+    label.textContent='🏷 Tags:';bar.appendChild(label);
+    tags.forEach(t=>{
+        const btn=document.createElement('button');
+        btn.className='f-btn tag-f';btn.textContent=t;
+        btn.onclick=()=>setTagFilter(t,btn);
+        bar.appendChild(btn);
+    });
+    if(currentTagFilter){
+        bar.querySelectorAll('.tag-f').forEach(b=>{if(b.textContent===currentTagFilter)b.classList.add('active')});
+    }
+}
+
+function setFilter(f,btn){
+    currentFilter=f;currentTagFilter='';
+    document.querySelectorAll('.f-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    applyFilters();
+}
+
+function setTagFilter(tag,btn){
+    if(currentTagFilter===tag){currentTagFilter='';btn.classList.remove('active')}
+    else{
+        currentTagFilter=tag;
+        document.querySelectorAll('.f-btn.tag-f').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+    }
+    applyFilters();
+}
+
+function filterByAuthor(author){
+    document.getElementById('search-input').value=author;
+    currentFilter='all';currentTagFilter='';
+    document.querySelectorAll('.f-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelector('.f-btn').classList.add('active');
+    closeStats();applyFilters();window.scrollTo(0,0);
+}
+
+function filterByTag(tag){
+    currentTagFilter=tag;
+    document.querySelectorAll('.f-btn.tag-f').forEach(b=>{b.classList.toggle('active',b.textContent===tag)});
+    applyFilters();window.scrollTo(0,0);
+}
+
+function applyFilters(keepPage=false){
+    const q=document.getElementById("search-input").value.trim().toLowerCase();
+    const sort=document.getElementById("sort-select").value;
+    let posts=[...allPosts];
+
+    if(currentFilter==='favorites') posts=posts.filter(p=>p.favorited);
+    else if(currentFilter==='unavailable') posts=posts.filter(p=>p.unavailable);
+    else if(currentFilter.startsWith('collection:')){const c=currentFilter.slice(11);posts=posts.filter(p=>p.collection===c)}
+
+    if(currentTagFilter) posts=posts.filter(p=>(p.tags||[]).includes(currentTagFilter));
+    if(q) posts=posts.filter(p=>(p.text||"").toLowerCase().includes(q)||(p.author||"").toLowerCase().includes(q)||(p.video_title||"").toLowerCase().includes(q));
+
+    if(sort==='newest') posts=[...posts].reverse();
+    else if(sort==='author') posts=[...posts].sort((a,b)=>(a.author||"").localeCompare(b.author||""));
+    else if(sort==='most_comments') posts=[...posts].sort((a,b)=>(b.comments||[]).length-(a.comments||[]).length);
+    else if(sort==='most_images') posts=[...posts].sort((a,b)=>(b.images||[]).length-(a.images||[]).length);
+
+    filteredPosts=posts;
+    if(keepPage){const newTotal=Math.ceil(posts.length/PAGE_SIZE)||1;currentPage=Math.min(currentPage,newTotal);}
+    else{currentPage=1;}
+    document.getElementById("no-results").style.display=posts.length?"none":"block";
+    renderPage();
+}
+
+function renderPage(){
+    const total=Math.ceil(filteredPosts.length/PAGE_SIZE)||1;
+    const start=(currentPage-1)*PAGE_SIZE;
+    const feed=document.getElementById("feed");
+    feed.innerHTML="";
+    filteredPosts.slice(start,start+PAGE_SIZE).forEach(p=>feed.appendChild(buildCard(p)));
+    renderPg('pg-top',total);renderPg('pg-bottom',total);
+}
+
+function renderPg(id,total){
+    const el=document.getElementById(id);
+    if(total<=1){el.innerHTML='';return}
+    const pages=pgRange(currentPage,total);
+    let h=`<button class="pg-btn" onclick="goPage(${currentPage-1})" ${currentPage===1?'disabled':''}>‹</button>`;
+    for(const p of pages){
+        if(p==='…')h+=`<span style="padding:6px 4px;color:var(--sub)">…</span>`;
+        else h+=`<button class="pg-btn ${p===currentPage?'active':''}" onclick="goPage(${p})">${p}</button>`;
+    }
+    h+=`<button class="pg-btn" onclick="goPage(${currentPage+1})" ${currentPage===total?'disabled':''}>›</button>`;
+    h+=`<span style="display:flex;align-items:center;gap:4px;margin-left:6px">
+        <input class="pg-go-input" id="${id}-go" type="number" min="1" max="${total}" placeholder="#"
+               onkeydown="if(event.key==='Enter')goPage(+this.value)">
+        <button class="pg-btn" onclick="goPage(+document.getElementById('${id}-go').value)" style="padding:6px 10px">Go</button>
+    </span>`;
+    el.innerHTML=h;
+}
+
+function pgRange(cur,total){
+    const d=2,out=[];
+    const s=Math.max(2,cur-d),e=Math.min(total-1,cur+d);
+    out.push(1);
+    if(s>2)out.push('…');
+    for(let i=s;i<=e;i++)out.push(i);
+    if(e<total-1)out.push('…');
+    if(total>1)out.push(total);
+    return out;
+}
+
+function goPage(page){
+    const total=Math.ceil(filteredPosts.length/PAGE_SIZE)||1;
+    if(page<1||page>total||isNaN(page))return;
+    currentPage=page;renderPage();window.scrollTo(0,0);
+}
+
+// ── Screenshot ────────────────────────────────────────────────────────────────
+async function screenshotCard(cardEl,authorName){
+    const commentsSection=cardEl.querySelector('.comments-section');
+    if(commentsSection)commentsSection.style.visibility='hidden';
+    const isDark=document.documentElement.classList.contains('dark');
+    try{
+        const canvas=await html2canvas(cardEl,{
+            useCORS:true,scale:2,
+            backgroundColor:isDark?'#242526':'#ffffff',
+            logging:false
+        });
+        const link=document.createElement('a');
+        link.download=`post_${(authorName||'unknown').replace(/[^a-z0-9]/gi,'_').slice(0,40)}_${Date.now()}.png`;
+        link.href=canvas.toDataURL('image/png');
+        link.click();
+    }catch(e){
+        alert('Screenshot failed: '+e.message);
+    }finally{
+        if(commentsSection)commentsSection.style.visibility='';
+    }
+}
+
+async function screenshotPage(){
+    const btn=document.getElementById('screenshot-all-btn');
+    const cards=document.getElementById('feed').querySelectorAll('.post-card');
+    if(!cards.length){alert('No posts on this page.');return;}
+    btn.textContent='📷 Working…';btn.disabled=true;
+    let i=0;
+    for(const card of cards){
+        const authorEl=card.querySelector('.author-link,[class*="font-bold"]');
+        const author=authorEl?authorEl.innerText.trim():'post';
+        await screenshotCard(card,`${String(i+1).padStart(3,'0')}_${author}`);
+        i++;
+        await new Promise(r=>setTimeout(r,400));
+    }
+    btn.textContent='📷 Page';btn.disabled=false;
+}
+
+// ── Build card ────────────────────────────────────────────────────────────────
+function buildCard(post){
+    const card=document.createElement("div");
+    card.className="post-card";
+
+    const author    =DOMPurify.sanitize(post.author||"Unknown");
+    const date      =DOMPurify.sanitize(post.date||"");
+    const rawText   =post.text||"";
+    const videoTitle=post.video_title||"";
+    const su        =safeUrl(post.url);
+    const authorUrl =(post.author_url||"").startsWith("https://")?post.author_url:"";
+    const thumbSrc  =post.author_thumb||"";
+    const rtl       =post.rtl!==undefined?post.rtl:isRTL(rawText+post.author);
+    const dirCls    =rtl?"text-rtl":"text-ltr";
+    const authorRtl =isRTL(post.author||"");
+    const authorDirCls=authorRtl?"text-rtl":"text-ltr";
+    const initial   =author.replace(/[^a-zA-Z\u0600-\u06FF\u0400-\u04FF]/g,"")[0]||"?";
+    const typeEmoji ={album:"📸",video:"🎬",photo:"🖼️",event:"📅"}[post.type]||"📝";
+    const typeName  ={album:"Album",video:"Video",photo:"Photo",event:"Event"}[post.type]||"Post";
+    const isFav     =post.favorited||false;
+    const reactions =(post.reactions||"").replace(/see who reacted to this/i,"").trim();
+    const tags      =post.tags||[];
+    const e         =esc(post.url);
+
+    const avatarHtml=thumbSrc
+        ?`<div class="avatar"><img src="${thumbSrc}" alt="" onerror="this.parentElement.innerHTML='${initial}'"></div>`
+        :`<div class="avatar">${initial}</div>`;
+
+    const authorEl=authorUrl
+        ?`<a href="${authorUrl}" target="_blank" rel="noopener noreferrer" class="author-link ${authorDirCls}" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${author}</a>`
+        :`<span class="font-bold ${authorDirCls}" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)">${author}</span>`;
+
+    // Images
+    const imgs=post.images||[];
+    const shown=imgs,extra=0;
+    const gridCls={1:"grid-1",2:"grid-2",3:"grid-3",4:"grid-4"}[shown.length]||"grid-many";
+    const imgTiles=shown.map((src,i)=>{
+        const isLast=extra>0&&i===shown.length-1;
+        const wrap=isLast?`<div class="img-more-wrap" data-more="+${extra}">`:`<div>`;
+        return `${wrap}<img src="${DOMPurify.sanitize(src)}" loading="lazy"
+            onerror="this.parentElement.style.display='none'"
+            onclick='openLB(${JSON.stringify(imgs)},${i})'></div>`;
+    }).join("");
+    const gridHtml=imgs.length?`<div class="image-grid ${gridCls}">${imgTiles}</div>`:"";
+
+    // Text — sanitize first, then convert newlines to <br>, then linkify
+    const linkedText=linkify(DOMPurify.sanitize(rawText).replace(/\n/g,'<br>'));
+    const longText=rawText.length>300;
+    const seeMore=longText?`<span class="see-more-btn" onclick="toggleText(this)">See more</span>`:"";
+
+    // Tags
+    const tagsHtml=`
+        <div style="display:flex;flex-wrap:wrap;align-items:center;margin-top:6px">
+            ${tags.map(t=>`<span class="tag-chip" onclick="filterByTag('${esc(t)}')">🏷 ${DOMPurify.sanitize(t)}<span onclick="event.stopPropagation();removeTag('${e}','${esc(t)}',this)" style="margin-left:3px;font-size:10px;opacity:.7">✕</span></span>`).join("")}
+            <span class="add-tag-btn" onclick="showTagInput(this,'${e}')">+ tag</span>
+        </div>
+        <div class="tag-input-wrap" style="display:none;margin-top:4px">
+            <input class="tag-input" type="text" placeholder="Tag name… (Enter)" onkeydown="if(event.key==='Enter')addTag(this,'${e}')">
+        </div>`;
+
+    // Comments
+    const comments=post.comments||[];
+    let commentsHtml="";
+    if(comments.length){
+        const items=comments.map(c=>{
+            const cDir=(c.rtl!==undefined?c.rtl:isRTL(c.text))?"text-rtl":"text-ltr";
+            const cAuth=DOMPurify.sanitize(c.author||"");
+            const cTxt=DOMPurify.sanitize(c.text||"");
+            const cUrl=(c.author_url||"").startsWith("https://")?c.author_url:"";
+            const cThumb=c.author_thumb||"";
+            const cInit=(cAuth.replace(/[^a-zA-Z\u0600-\u06FF\u0400-\u04FF]/g,"")||"?")[0];
+            const cAvatar=`<div style="width:28px;height:28px;border-radius:50%;overflow:hidden;flex-shrink:0;margin-right:7px;background:linear-gradient(135deg,#1877f2,#42a5f5);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">${cThumb?`<img src="${DOMPurify.sanitize(cThumb)}" style="width:100%;height:100%;object-fit:cover" onerror="this.remove()">`:""}${cInit}</div>`;
+            const cAEl=cUrl?`<a href="${cUrl}" target="_blank" rel="noopener noreferrer" class="comment-author-link">${cAuth}</a>`:`<span style="font-weight:600;font-size:13px">${cAuth}</span>`;
+            const replies=c.replies||[];
+            let rHtml="";
+            if(replies.length){
+                const rItems=replies.map(r=>{
+                    const rDir=(r.rtl!==undefined?r.rtl:isRTL(r.text))?"text-rtl":"text-ltr";
+                    const rAuth=DOMPurify.sanitize(r.author||"");
+                    const rTxt=DOMPurify.sanitize(r.text||"");
+                    const rUrl=(r.author_url||"").startsWith("https://")?r.author_url:"";
+                    const rThumb=r.author_thumb||"";
+                    const rInit=(rAuth.replace(/[^a-zA-Z\u0600-\u06FF\u0400-\u04FF]/g,"")||"?")[0];
+                    const rAvatar=`<div style="width:22px;height:22px;border-radius:50%;overflow:hidden;flex-shrink:0;margin-right:6px;background:linear-gradient(135deg,#42a5f5,#1877f2);color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center">${rThumb?`<img src="${DOMPurify.sanitize(rThumb)}" style="width:100%;height:100%;object-fit:cover" onerror="this.remove()">`:""}${rInit}</div>`;
+                    const rAEl=rUrl?`<a href="${rUrl}" target="_blank" rel="noopener noreferrer" class="comment-author-link">${rAuth}</a>`:`<span style="font-weight:600;font-size:12px">${rAuth}</span>`;
+                    return `<div class="reply-block ${rDir}" style="display:flex;align-items:flex-start">${rAvatar}<div style="flex:1">${rAEl} <span style="color:var(--text)">${rTxt}</span></div></div>`;
+                }).join("");
+                rHtml=`<span class="replies-toggle" onclick="toggleReplies(this)">↳ ${replies.length} repl${replies.length>1?'ies':'y'}</span><div class="replies-body">${rItems}</div>`;
+            }
+            return `<div style="margin-bottom:6px"><div class="comment-block ${cDir}" style="display:flex;align-items:flex-start">${cAvatar}<div style="flex:1">${cAEl} <span style="color:var(--text);margin-left:4px">${cTxt}</span></div></div>${rHtml}</div>`;
+        }).join("");
+        commentsHtml=`<div class="comments-section">
+            <button class="comments-toggle" onclick="toggleComments(this)">
+                <i class="far fa-comment"></i> ${comments.length} comment${comments.length>1?'s':''}
+                <span style="margin-left:auto">▾</span>
+            </button>
+            <div class="comments-body">${items}</div>
+        </div>`;
+    }
+
+    const unavailBanner=post.unavailable?`<div class="unavail-banner">⚠️ This content is no longer available on Facebook (deleted or restricted).</div>`:"";
+
+    card.innerHTML=`
+        <div style="padding:14px 16px">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+                ${avatarHtml}
+                <div style="flex:1;min-width:0">
+                    ${authorEl}
+                    ${post.group_name?`<div style="font-size:11px;color:var(--badge-color);margin-top:1px">📢 ${(post.group_url&&post.group_url.startsWith('https://'))?`<a href="${DOMPurify.sanitize(post.group_url)}" target="_blank" rel="noopener noreferrer" style="color:var(--badge-color);text-decoration:none;font-weight:600">${DOMPurify.sanitize(post.group_name)}</a>`:DOMPurify.sanitize(post.group_name)}</div>`:''}
+                    <div style="font-size:12px;color:var(--sub);margin-top:2px;display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+                        ${date?`<span>🕐 ${date}</span><span>·</span>`:""}
+                        <a href="${su}" target="_blank" rel="noopener noreferrer" style="color:#1877f2">Original post</a>
+                    </div>
+                    ${reactions?`<div class="reactions-bar">👍 ${DOMPurify.sanitize(reactions)}</div>`:""}
+                </div>
+                <span class="type-badge">${typeEmoji} ${typeName}</span>
+                <span class="fav-btn ${isFav?'active':'inactive'}" onclick="toggleFav('${e}',this)" title="Favorite">★</span>
+                <span class="icon-btn" onclick="screenshotCard(this.closest('.post-card'),'${esc(author)}')" title="Screenshot post"><i class="fas fa-camera"></i></span>
+                <span class="icon-btn" onclick="startRescrape('${e}')" title="Re-scrape"><i class="fas fa-sync-alt"></i></span>
+                <span class="icon-btn del-btn" onclick="askDelete('${e}')" title="Move to bin"><i class="fas fa-trash-alt"></i></span>
+            </div>
+            ${videoTitle?`<div class="video-title">🎬 ${DOMPurify.sanitize(videoTitle)}</div>`:""}
+            ${unavailBanner}
+            ${rawText?`<div style="font-size:14px;line-height:1.6;margin-bottom:6px">
+                <div class="${longText?'text-clamped':''} ${dirCls}" style="color:var(--text)">${linkedText}</div>
+                ${seeMore}
+            </div>`:""}
+            ${tagsHtml}
+        </div>
+        ${gridHtml}
+        ${commentsHtml}
+    `;
+    return card;
+}
+
+// ── Tag actions ───────────────────────────────────────────────────────────────
+function showTagInput(btn,url){btn.parentElement.nextElementSibling.style.display='block';btn.parentElement.nextElementSibling.querySelector('input').focus()}
+async function addTag(input,url){
+    const tag=input.value.trim();if(!tag)return;
+    const post=allPosts.find(p=>p.url===url);if(!post)return;
+    const tags=[...new Set([...(post.tags||[]),tag])];
+    const r=await fetch('/update_tags',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url,tags})});
+    const d=await r.json();
+    if(d.status==='success'){post.tags=d.tags;buildFilterBar();buildTagBar();applyFilters(true)}
+}
+async function removeTag(url,tag,btn){
+    const post=allPosts.find(p=>p.url===url);if(!post)return;
+    const tags=(post.tags||[]).filter(t=>t!==tag);
+    const r=await fetch('/update_tags',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url,tags})});
+    const d=await r.json();
+    if(d.status==='success'){post.tags=d.tags;buildFilterBar();buildTagBar();applyFilters(true)}
+}
+
+// ── Fav / Delete / Rescrape ───────────────────────────────────────────────────
+async function toggleFav(url,btn){
+    const r=await fetch('/toggle_favorite',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+    const d=await r.json();
+    if(d.status==='success'){
+        const p=allPosts.find(p=>p.url===url);
+        if(p)p.favorited=d.favorited;
+        btn.classList.toggle('active',d.favorited);btn.classList.toggle('inactive',!d.favorited);
+        updateStats();if(currentFilter==='favorites')applyFilters(true);
+    }
+}
+function askDelete(url){pendingDeleteUrl=url;document.getElementById('confirm-overlay').classList.add('open')}
+function cancelDelete(){pendingDeleteUrl=null;document.getElementById('confirm-overlay').classList.remove('open')}
+async function confirmDelete(){
+    if(!pendingDeleteUrl)return;
+    document.getElementById('confirm-overlay').classList.remove('open');
+    const r=await fetch('/delete_post',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:pendingDeleteUrl})});
+    const d=await r.json();
+    if(d.status==='success'){allPosts=allPosts.filter(p=>p.url!==pendingDeleteUrl);updateStats();buildFilterBar();buildTagBar();applyFilters(true)}
+    else alert('Delete failed: '+(d.error||'unknown'));
+    pendingDeleteUrl=null;
+}
+async function startRescrape(url){
+    if(!confirm('Re-scrape this post? It will be removed and re-fetched.'))return;
+    const r=await fetch('/rescrape',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+    const d=await r.json();
+    if(d.status==='success'){allPosts=allPosts.filter(p=>p.url!==url);updateStats();buildFilterBar();buildTagBar();applyFilters(true);alert('Re-scraping started. Check the dashboard.')}
+    else alert('Re-scrape failed: '+(d.error||'unknown'));
+}
+
+// ── Recycle bin ───────────────────────────────────────────────────────────────
+async function openBin(){
+    document.getElementById('bin-modal').classList.add('open');
+    document.getElementById('bin-content').innerHTML='<p style="color:var(--sub)">Loading…</p>';
+    const r=await fetch('/get_bin');
+    const posts=await r.json();
+    if(!posts.length){document.getElementById('bin-content').innerHTML='<p style="color:var(--sub);text-align:center;padding:20px">Bin is empty.</p>';return}
+    const html=posts.map(p=>{
+        const auth=DOMPurify.sanitize(p.author||"Unknown");
+        const txt=DOMPurify.sanitize((p.text||"").slice(0,120));
+        const e2=esc(p.url);
+        return `<div class="bin-card">
+            <div style="flex:1;min-width:0">
+                <div style="font-weight:700;font-size:14px">${auth}</div>
+                <div style="font-size:12px;color:var(--sub);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${txt||p.url}</div>
+            </div>
+            <button onclick="restorePost('${e2}',this)" style="padding:5px 12px;border-radius:8px;background:#1877f2;color:#fff;border:none;cursor:pointer;font-size:13px;font-weight:600;flex-shrink:0">Restore</button>
+        </div>`;
+    }).join("");
+    document.getElementById('bin-content').innerHTML=html;
+}
+function closeBin(){document.getElementById('bin-modal').classList.remove('open')}
+async function restorePost(url,btn){
+    const r=await fetch('/restore_post',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+    const d=await r.json();
+    if(d.status==='success'){
+        btn.closest('.bin-card').remove();
+        const r2=await fetch('/data/results.json');
+        allPosts=await r2.json();
+        updateStats();buildFilterBar();buildTagBar();applyFilters(true);
+    }
+}
+async function emptyBin(){
+    if(!confirm('Permanently delete all items in the bin? This cannot be undone.'))return;
+    const r=await fetch('/empty_bin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+    const d=await r.json();
+    if(d.status==='success'){document.getElementById('bin-content').innerHTML='<p style="color:var(--sub);text-align:center;padding:20px">Bin is empty.</p>'}
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+async function openStats(){
+    document.getElementById('stats-modal').classList.add('open');
+    document.getElementById('stats-content').innerHTML='<p style="color:var(--sub)">Loading…</p>';
+    try{
+        const r=await fetch('/get_stats');
+        const d=await r.json();
+        let h=`
+            <div class="stat-row"><span>Total posts</span><strong>${d.total}</strong></div>
+            <div class="stat-row"><span>With images</span><strong>${d.with_images}</strong></div>
+            <div class="stat-row"><span>With comments</span><strong>${d.with_comments}</strong></div>
+            <div class="stat-row"><span>Favorites ⭐</span><strong>${d.favorites}</strong></div>
+            <div class="stat-row"><span>Unavailable ⚠️</span><strong>${d.unavailable}</strong></div>
+            <div class="stat-row"><span>In recycle bin 🗑</span><strong>${d.bin_count}</strong></div>`;
+        if(d.top_authors?.length){
+            h+=`<p style="font-weight:700;margin:14px 0 6px">Top Authors <span style="font-size:11px;color:var(--sub);font-weight:400">(click to filter)</span></p>`;
+            d.top_authors.forEach(([name,count])=>{
+                h+=`<div class="stat-row"><span class="stat-author-link" onclick="filterByAuthor('${esc(name)}')">${DOMPurify.sanitize(name)}</span><strong>${count}</strong></div>`;
+            });
+        }
+        if(d.collections?.length){
+            h+=`<p style="font-weight:700;margin:14px 0 6px">Collections</p>`;
+            d.collections.forEach(([name,count])=>{
+                h+=`<div class="stat-row"><span>📁 ${DOMPurify.sanitize(name)}</span><strong>${count}</strong></div>`;
+            });
+        }
+        if(d.top_tags?.length){
+            h+=`<p style="font-weight:700;margin:14px 0 6px">Tags</p>`;
+            d.top_tags.forEach(([tag,count])=>{
+                h+=`<div class="stat-row"><span class="stat-author-link" onclick="filterByTag('${esc(tag)}');closeStats()">🏷 ${DOMPurify.sanitize(tag)}</span><strong>${count}</strong></div>`;
+            });
+        }
+        document.getElementById('stats-content').innerHTML=h;
+    }catch(e){document.getElementById('stats-content').innerHTML='<p style="color:#ef4444">Failed to load stats.</p>'}
+}
+function closeStats(){document.getElementById('stats-modal').classList.remove('open')}
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function toggleComments(btn){const b=btn.nextElementSibling,o=b.classList.toggle('open');btn.querySelector('span[style]').textContent=o?'▴':'▾'}
+function toggleReplies(btn){btn.nextElementSibling.classList.toggle('open')}
+function toggleText(btn){const e=btn.previousElementSibling,c=e.classList.toggle('text-clamped');btn.textContent=c?'See more':'See less'}
+function openLB(imgs,idx){lbImages=imgs;lbIdx=idx;showLB();document.getElementById('lightbox').classList.add('open')}
+function showLB(){document.getElementById('lb-img').src=lbImages[lbIdx];document.getElementById('lb-counter').textContent=`${lbIdx+1} / ${lbImages.length}`}
+function stepLB(d){lbIdx=(lbIdx+d+lbImages.length)%lbImages.length;showLB()}
+function closeLB(){document.getElementById('lightbox').classList.remove('open')}
+document.getElementById('lightbox').addEventListener('click',e=>{if(e.target===document.getElementById('lightbox'))closeLB()});
+document.addEventListener('keydown',e=>{
+    if(!document.getElementById('lightbox').classList.contains('open'))return;
+    if(e.key==='Escape')closeLB();if(e.key==='ArrowLeft')stepLB(-1);if(e.key==='ArrowRight')stepLB(1);
+});
+
+loadResults();
+</script>
+</body>
+</html>
